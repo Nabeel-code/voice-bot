@@ -1,0 +1,407 @@
+# HTML Template
+html_interface = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Personal Voice Assistant</title>
+    <style>
+        :root {
+            --primary: #4361ee;
+            --danger: #f72585;
+            --success: #4cc9f0;
+            --dark: #212529;
+            --light: #f8f9fa;
+        }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f7fa;
+            color: var(--dark);
+        }
+        h1 {
+            color: var(--primary);
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        #chatbox {
+            height: 400px;
+            border: 1px solid #dee2e6;
+            padding: 20px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        .input-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        #textInput {
+            flex: 1;
+            padding: 12px 15px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border 0.3s;
+        }
+        #textInput:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #3a56d4;
+            transform: translateY(-2px);
+        }
+        .btn-danger {
+            background-color: var(--danger);
+            color: white;
+        }
+        .btn-danger:hover {
+            background-color: #e5177b;
+            transform: translateY(-2px);
+        }
+        .recording {
+            animation: pulse 1.5s infinite;
+            box-shadow: 0 0 0 0 rgba(247, 37, 133, 0.7);
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(247, 37, 133, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(247, 37, 133, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(247, 37, 133, 0); }
+        }
+        .message {
+            margin: 15px 0;
+            padding: 12px 16px;
+            border-radius: 12px;
+            max-width: 70%;
+            position: relative;
+            line-height: 1.5;
+        }
+        .user-message {
+            background-color: var(--primary);
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+        .bot-message {
+            background-color: #e9ecef;
+            margin-right: auto;
+            border-bottom-left-radius: 4px;
+        }
+        .message-time {
+            display: block;
+            font-size: 12px;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+        audio {
+            width: 100%;
+            margin-top: 10px;
+            border-radius: 8px;
+        }
+        #audioIndicator {
+            display: none;
+            color: var(--danger);
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        .mic-icon {
+            font-size: 18px;
+        }
+        .volume-meter {
+            display: none;
+            height: 20px;
+            width: 100%;
+            background: #e9ecef;
+            border-radius: 10px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        .volume-level {
+            height: 100%;
+            width: 0%;
+            background: var(--success);
+            transition: width 0.1s;
+        }
+        .instructions {
+            text-align: center;
+            color: #6c757d;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Personal Voice Assistant</h1>
+    <p class="instructions">Click and hold the microphone button to speak, or type your question below</p>
+    
+    <div id="chatbox">
+        <div class="message bot-message">
+            Hello! I'm ready to help. You can ask me about:<br>
+            • My life story<br>
+            • My superpower<br>
+            • Areas I want to grow in<br>
+            • Misconceptions about me<br>
+            • How I push my limits<br>
+            <span class="message-time">Just now</span>
+        </div>
+    </div>
+
+    <div class="input-container">
+        <input type="text" id="textInput" placeholder="Type your question..." autocomplete="off">
+        <button id="textSubmit" class="btn btn-primary">Send</button>
+    </div>
+    
+    <div class="input-container">
+        <button id="recordButton" class="btn btn-danger">
+            <span class="mic-icon">🎤</span> Hold to Speak
+        </button>
+        <span id="audioIndicator">● Listening... (release when finished)</span>
+    </div>
+    
+    <div class="volume-meter">
+        <div class="volume-level" id="volumeLevel"></div>
+    </div>
+    
+    <audio id="responseAudio" controls></audio>
+
+    <script>
+        const textInput = document.getElementById('textInput');
+        const textSubmit = document.getElementById('textSubmit');
+        const recordButton = document.getElementById('recordButton');
+        const audioIndicator = document.getElementById('audioIndicator');
+        const chatbox = document.getElementById('chatbox');
+        const responseAudio = document.getElementById('responseAudio');
+        const volumeMeter = document.querySelector('.volume-meter');
+        const volumeLevel = document.getElementById('volumeLevel');
+        
+        let mediaRecorder;
+        let audioChunks = [];
+        let audioContext;
+        let analyser;
+        let microphone;
+        let isRecording = false;
+        let animationId;
+
+        // Text submission
+        textSubmit.addEventListener('click', sendText);
+        textInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendText();
+        });
+
+        function sendText() {
+            const question = textInput.value.trim();
+            if (!question) return;
+            
+            addMessage(question, 'user');
+            textInput.value = '';
+            
+            fetch('/ask', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question })
+            })
+            .then(response => response.json())
+            .then(handleResponse)
+            .catch(handleError);
+        }
+
+        // Audio recording setup
+        async function setupAudioContext() {
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 32;
+                
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                microphone = audioContext.createMediaStreamSource(stream);
+                microphone.connect(analyser);
+                
+                mediaRecorder = new MediaRecorder(stream);
+                
+                mediaRecorder.ondataavailable = (e) => {
+                    audioChunks.push(e.data);
+                };
+                
+                mediaRecorder.onstop = sendAudio;
+                
+                // Visual feedback setup
+                volumeMeter.style.display = 'block';
+                visualizeVolume();
+                
+                return true;
+            } catch (err) {
+                console.error("Audio setup failed:", err);
+                handleError(err);
+                return false;
+            }
+        }
+
+        function visualizeVolume() {
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            analyser.getByteFrequencyData(dataArray);
+            
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                sum += dataArray[i];
+            }
+            const average = sum / dataArray.length;
+            
+            // Scale the volume level for better visualization
+            const scaledVolume = Math.min(100, Math.max(0, average * 1.5));
+            volumeLevel.style.width = `${scaledVolume}%`;
+            
+            // Change color based on volume
+            if (scaledVolume > 70) {
+                volumeLevel.style.background = '#f72585';
+            } else if (scaledVolume > 30) {
+                volumeLevel.style.background = '#4cc9f0';
+            } else {
+                volumeLevel.style.background = '#4361ee';
+            }
+            
+            if (isRecording) {
+                animationId = requestAnimationFrame(visualizeVolume);
+            }
+        }
+
+        async function startRecording() {
+            if (isRecording) return;
+            
+            const audioSetupSuccess = await setupAudioContext();
+            if (!audioSetupSuccess) return;
+            
+            isRecording = true;
+            audioChunks = [];
+            recordButton.classList.add('recording');
+            audioIndicator.style.display = 'inline';
+            recordButton.innerHTML = '<span class="mic-icon">🎤</span> Listening...';
+            
+            // Start recording after a small delay to avoid initial silence
+            setTimeout(() => {
+                if (isRecording) {
+                    mediaRecorder.start(100); // Collect data every 100ms
+                }
+            }, 300);
+        }
+
+        function stopRecording() {
+            if (!isRecording) return;
+            isRecording = false;
+            
+            cancelAnimationFrame(animationId);
+            recordButton.classList.remove('recording');
+            audioIndicator.style.display = 'none';
+            recordButton.innerHTML = '<span class="mic-icon">🎤</span> Hold to Speak';
+            volumeLevel.style.width = '0%';
+            
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            
+            // Close audio context
+            if (audioContext && audioContext.state !== 'closed') {
+                audioContext.close();
+            }
+        }
+
+        function sendAudio() {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            addMessage("(Voice message)", 'user');
+            
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'audio.wav');
+            
+            fetch('/ask', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(handleResponse)
+            .catch(handleError);
+        }
+
+        function handleResponse(data) {
+            addMessage(data.response_text, 'bot');
+            responseAudio.src = data.audio_response;
+            responseAudio.play();
+        }
+
+        function handleError(error) {
+            console.error(error);
+            addMessage("Error: Could not process request. Please try again.", 'bot');
+            stopRecording();
+        }
+
+        function addMessage(text, sender) {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}-message`;
+            messageDiv.innerHTML = `
+                ${text}<br>
+                <span class="message-time">${timeString}</span>
+            `;
+            
+            chatbox.appendChild(messageDiv);
+            chatbox.scrollTop = chatbox.scrollHeight;
+        }
+
+        // Event listeners for recording
+        recordButton.addEventListener('mousedown', startRecording);
+        recordButton.addEventListener('mouseup', stopRecording);
+        recordButton.addEventListener('mouseleave', stopRecording);
+        
+        // Touch support for mobile devices
+        recordButton.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            startRecording();
+        });
+        
+        recordButton.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            stopRecording();
+        });
+
+        // Initialize microphone access indicator
+        navigator.permissions.query({ name: 'microphone' }).then((result) => {
+            if (result.state === 'denied') {
+                recordButton.disabled = true;
+                recordButton.innerHTML = '<span class="mic-icon">❌</span> Mic Blocked';
+                addMessage("Please enable microphone access in your browser settings to use voice commands", 'bot');
+            }
+        });
+    </script>
+</body>
+</html>
+"""
+
+# Initial setup
+os.makedirs('templates', exist_ok=True)
+with open('templates/index.html', 'w') as f:
+    f.write(html_interface)
+
+setup_audio()
+start_server()
+print(f"Personal voice assistant is running! Access at: http://localhost:{PORT}")
