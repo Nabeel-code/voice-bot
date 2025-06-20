@@ -3,6 +3,8 @@
 A Flask-based voice-enabled chatbot with text/audio input and OpenAI responses.
 
 ![Demo Screenshot](static/demo-screenshot.png) ![image](https://github.com/user-attachments/assets/eb922170-b902-4bff-b81f-77ab1ba12ac2)
+> [How I Built a Voice-Based GenAI Assistant with GPT-4 + LangChain](https://medium.com/@nabeel.ma61/how-i-built-a-voice-based-genai-assistant-using-gpt-4-langchain-and-whisper-f6223aadff81)
+
 
 
 ## Features
